@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Products — ShopDB{% endblock %}
+{% block page_title %}Products{% endblock %}
+{% block content %}
+<div class="page-hdr">
+  <h2>All Products</h2>
+  <a href="{{ url_for('new_product') }}" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Add Product</a>
+</div>
+
+<form class="filter-bar" method="get">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search name, SKU…" style="flex:1;min-width:200px"/>
+  <select name="category">
+    <option value="">All categories</option>
+    {% for c in categories %}
+    <option value="{{ c.id }}" {{ 'selected' if cat == c.id|string }}>{{ c.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-primary">Filter</button>
+  {% if q or cat %}<a href="{{ url_for('products') }}" class="btn">Clear</a>{% endif %}
+</form>
+
+<div class="product-grid">
+  {% for p in products %}
+  <div class="product-card">
+    <div class="product-card-img">
+      {% if p.image_url %}
+        <img src="{{ p.image_url }}" alt="{{ p.name }}"/>
+      {% else %}
+        <i class="fa-solid fa-box"></i>
+      {% endif %}
+    </div>
+    <div class="product-card-body">
+      <div class="product-card-name">{{ p.name }}</div>
+      <div class="product-card-meta">
+        {{ p.category_name or 'No category' }} &middot;
+        <span class="mono">{{ p.sku or '—' }}</span>
+      </div>
+      <div class="flex items-center gap-2" style="margin-bottom:10px">
+        <span class="product-card-price">${{ "%.2f"|format(p.price) }}</span>
+        <span class="badge {% if p.stock < 10 %}badge-cancelled{% elif p.stock < 30 %}badge-pending{% else %}badge-delivered{% endif %}" style="margin-left:auto">
+          {{ p.stock }} in stock
+        </span>
+      </div>
+      {% if p.video_url %}
+      <div style="margin-bottom:10px">
+        <video src="{{ p.video_url }}" style="width:100%;border-radius:6px;max-height:80px" controls></video>
+      </div>
+      {% endif %}
+      <div class="product-card-actions">
+        <a href="{{ url_for('edit_product', pid=p.id) }}" class="btn btn-sm" style="flex:1;justify-content:center">
+          <i class="fa-solid fa-pen"></i> Edit
+        </a>
+        <form method="post" action="{{ url_for('delete_product', pid=p.id) }}"
+              onsubmit="return confirm('Delete {{ p.name }}?')">
+          <button class="btn btn-sm btn-danger btn-icon"><i class="fa-solid fa-trash"></i></button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-muted" style="grid-column:1/-1;text-align:center;padding:40px">No products found.</p>
+  {% endfor %}
+</div>
+{% endblock %}

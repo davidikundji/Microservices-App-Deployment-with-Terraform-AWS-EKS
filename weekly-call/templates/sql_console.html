@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}SQL Console — ShopDB{% endblock %}
+{% block page_title %}SQL Console{% endblock %}
+{% block content %}
+<div class="page-hdr">
+  <h2>Live Query Console</h2>
+  <span class="text-muted text-sm" style="font-size:13px"><i class="fa-solid fa-shield-halved"></i> SELECT / SHOW / DESCRIBE only</span>
+</div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">Tables</span></div>
+  <div class="sql-pills">
+    {% for t in ['products','categories','customers','orders','order_items','documents'] %}
+    <span class="sql-pill" onclick="setQuery('SELECT * FROM {{ t }} LIMIT 20;')">{{ t }}</span>
+    {% endfor %}
+  </div>
+  <textarea id="sqlInput" class="sql-textarea" rows="5" placeholder="SELECT * FROM products ORDER BY price DESC LIMIT 10;"></textarea>
+  <div class="flex gap-2 items-center" style="margin-top:10px">
+    <button class="btn btn-primary" onclick="runQuery()"><i class="fa-solid fa-play"></i> Run Query</button>
+    <button class="btn" onclick="document.getElementById('result').innerHTML='';document.getElementById('sqlMeta').textContent=''">Clear</button>
+    <span id="sqlMeta" class="text-muted text-sm"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">Quick Queries</span></div>
+  <div class="sql-pills">
+    <span class="sql-pill" onclick="setQuery('SELECT * FROM products ORDER BY price DESC;')">Products by price</span>
+    <span class="sql-pill" onclick="setQuery('SELECT c.name, COUNT(o.id) AS orders, COALESCE(SUM(o.total),0) AS spent FROM customers c LEFT JOIN orders o ON o.customer_id=c.id GROUP BY c.id ORDER BY spent DESC;')">Customer spend</span>
+    <span class="sql-pill" onclick="setQuery('SELECT p.name, SUM(oi.quantity) AS sold FROM order_items oi JOIN products p ON p.id=oi.product_id GROUP BY p.id ORDER BY sold DESC;')">Top sellers</span>
+    <span class="sql-pill" onclick="setQuery('SELECT status, COUNT(*) AS count, ROUND(AVG(total),2) AS avg_total FROM orders GROUP BY status;')">Orders by status</span>
+    <span class="sql-pill" onclick="setQuery('SELECT * FROM documents ORDER BY created_at DESC;')">All documents</span>
+    <span class="sql-pill" onclick="setQuery('SHOW TABLES;')">Show tables</span>
+    <span class="sql-pill" onclick="setQuery('DESCRIBE products;')">Describe products</span>
+  </div>
+</div>
+
+<div id="result"></div>
+
+<script>
+async function runQuery() {
+  const sql = document.getElementById('sqlInput').value.trim();
+  if (!sql) return;
+  const t0 = Date.now();
+  document.getElementById('result').innerHTML = '<div class="card text-muted" style="text-align:center;padding:24px"><i class="fa-solid fa-spinner fa-spin"></i> Running…</div>';
+  const res  = await fetch('/api/sql', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sql}) });
+  const data = await res.json();
+  const ms   = Date.now() - t0;
+  if (data.error) {
+    document.getElementById('result').innerHTML = `<div class="card"><div class="sql-error"><i class="fa-solid fa-circle-exclamation"></i> ${data.error}</div></div>`;
+    document.getElementById('sqlMeta').textContent = '';
+    return;
+  }
+  document.getElementById('sqlMeta').textContent = `${data.rows.length} row(s) · ${ms}ms`;
+  if (!data.rows.length) {
+    document.getElementById('result').innerHTML = '<div class="card text-muted" style="text-align:center;padding:24px">No rows returned.</div>';
+    return;
+  }
+  let html = '<div class="card"><div class="sql-result"><table><thead><tr>';
+  data.columns.forEach(c => html += `<th>${c}</th>`);
+  html += '</tr></thead><tbody>';
+  data.rows.forEach(row => {
+    html += '<tr>';
+    row.forEach(cell => html += `<td>${cell === null ? '<span class="text-muted">NULL</span>' : cell}</td>`);
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  document.getElementById('result').innerHTML = html;
+}
+
+function setQuery(q) { document.getElementById('sqlInput').value = q; runQuery(); }
+
+document.getElementById('sqlInput').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runQuery();
+});
+</script>
+{% endblock %}

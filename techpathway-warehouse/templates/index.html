@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Techpathway Warehouse</title>
+  <style>
+    :root{--bg:#0f1115;--card:#171a21;--border:#262b36;--text:#e6e8ee;--muted:#8a90a2;--accent:#60a5fa;}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);}
+    header{padding:24px 32px;border-bottom:1px solid var(--border)}
+    header h1{font-size:18px;margin:0;font-weight:600}
+    header h1 span{color:var(--accent)}
+    header p{color:var(--muted);font-size:13px;margin:6px 0 0}
+    main{padding:24px 32px;max-width:1300px;margin:0 auto}
+    section{margin-bottom:36px}
+    h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 14px}
+    table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+    th,td{padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);font-size:13px}
+    th{color:var(--muted);font-weight:500;text-transform:uppercase;font-size:11px;letter-spacing:.04em}
+    tr:last-child td{border-bottom:none}
+    .stock-ok{color:#4ade80}
+    .stock-low{color:#fbbf24}
+    .stock-out{color:#f87171}
+    .adjust-form{display:inline-flex;gap:4px}
+    .adjust-form input{width:52px;background:#0f1115;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:12px}
+    .adjust-form button{background:#1e2430;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
+    .board{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+    .col{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;min-height:120px}
+    .col h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 12px;display:flex;justify-content:space-between}
+    .col h3 .count{background:rgba(255,255,255,.08);border-radius:999px;padding:1px 8px;font-size:11px}
+    .wo-card{background:#0f1115;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px}
+    .wo-card .top{display:flex;justify-content:space-between;font-weight:600;margin-bottom:4px}
+    .wo-card .items{color:var(--muted);font-size:12px;margin-bottom:8px}
+    .wo-card form{display:inline}
+    .wo-card button{width:100%;background:#1e2430;border:1px solid var(--border);color:var(--accent);border-radius:6px;padding:5px;font-size:12px;cursor:pointer}
+    .wo-card button:hover{background:#232a38}
+    .empty-col{color:var(--muted);font-size:12px;text-align:center;padding:20px 0}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📦 <span>techpathway-warehouse</span></h1>
+    <p>Receives orders from the admin dashboard, decrements inventory, and tracks fulfillment through pick → pack → ship.</p>
+  </header>
+  <main>
+    <section>
+      <h2>Inventory</h2>
+      <table>
+        <thead><tr><th>SKU</th><th>Product</th><th>Qty on hand</th><th>Reorder level</th><th>Status</th><th>Adjust</th></tr></thead>
+        <tbody>
+          {% for item in inventory %}
+          {% set state = 'stock-out' if item['quantity'] == 0 else ('stock-low' if item['quantity'] <= item['reorder_level'] else 'stock-ok') %}
+          <tr>
+            <td>{{ item['sku'] }}</td>
+            <td>{{ item['product_name'] }}</td>
+            <td class="{{ state }}">{{ item['quantity'] }}</td>
+            <td>{{ item['reorder_level'] }}</td>
+            <td class="{{ state }}">
+              {% if item['quantity'] == 0 %}Out of stock{% elif item['quantity'] <= item['reorder_level'] %}Low stock{% else %}In stock{% endif %}
+            </td>
+            <td>
+              <form class="adjust-form" method="post" action="/warehouse/inventory/{{ item['sku'] }}/adjust">
+                <input type="number" name="delta" value="10" />
+                <button type="submit">Restock</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Fulfillment board</h2>
+      <div class="board">
+        {% for status in status_flow %}
+        <div class="col">
+          <h3>{{ status }} <span class="count">{{ orders_by_status[status]|length }}</span></h3>
+          {% if orders_by_status[status] %}
+            {% for wo in orders_by_status[status] %}
+            <div class="wo-card">
+              <div class="top"><span>Order #{{ wo['order']['order_id'] }}</span><span>{{ wo['order']['customer_name'] }}</span></div>
+              <div class="items">
+                {% for it in wo['items'] %}{{ it['quantity'] }}× {{ it['product_name'] or it['sku'] }}{% if not loop.last %}, {% endif %}{% endfor %}
+              </div>
+              {% set idx = status_flow.index(status) %}
+              {% if idx + 1 < status_flow|length %}
+              <form method="post" action="/warehouse/orders/{{ wo['order']['id'] }}/status">
+                <input type="hidden" name="status" value="{{ status_flow[idx + 1] }}" />
+                <button type="submit">Move to {{ status_flow[idx + 1] }} →</button>
+              </form>
+              {% endif %}
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="empty-col">Nothing here</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

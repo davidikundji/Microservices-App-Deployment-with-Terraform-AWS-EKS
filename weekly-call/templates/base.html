@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>{% block title %}Techpathway BothCamp{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+</head>
+<body>
+
+<div class="app-shell">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-mark">
+        <i class="fa-solid fa-store"></i>
+      </div>
+      <div class="logo-text">
+        <span class="logo-name">Techpathway BothCamp</span>
+        <span class="logo-sub">Admin Panel</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('dashboard') }}"
+         class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-gauge-high"></i></span>
+        <span class="nav-label">Dashboard</span>
+        <span class="nav-glow"></span>
+      </a>
+      <a href="{{ url_for('products') }}"
+         class="nav-link {% if 'product' in (request.endpoint or '') %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-box-open"></i></span>
+        <span class="nav-label">Products</span>
+        <span class="nav-glow"></span>
+      </a>
+      <a href="{{ url_for('customers') }}"
+         class="nav-link {% if 'customer' in (request.endpoint or '') %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-users"></i></span>
+        <span class="nav-label">Customers</span>
+        <span class="nav-glow"></span>
+      </a>
+      <a href="{{ url_for('orders') }}"
+         class="nav-link {% if 'order' in (request.endpoint or '') %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-cart-shopping"></i></span>
+        <span class="nav-label">Orders</span>
+        <span class="nav-glow"></span>
+      </a>
+      <a href="{{ url_for('documents') }}"
+         class="nav-link {% if 'document' in (request.endpoint or '') %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-file-lines"></i></span>
+        <span class="nav-label">Documents</span>
+        <span class="nav-glow"></span>
+      </a>
+      <a href="{{ url_for('sql_console') }}"
+         class="nav-link {% if request.endpoint == 'sql_console' %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-terminal"></i></span>
+        <span class="nav-label">SQL Console</span>
+        <span class="nav-glow"></span>
+      </a>
+      <div class="nav-section-label" style="padding:14px 18px 6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.5">Services</div>
+      <a href="{{ warehouse_public_url }}" target="_blank" rel="noopener" class="nav-link">
+        <span class="nav-icon"><i class="fa-solid fa-warehouse"></i></span>
+        <span class="nav-label">Warehouse</span>
+        <span class="nav-glow"></span>
+      </a>
+      <a href="{{ notification_public_url }}" target="_blank" rel="noopener" class="nav-link">
+        <span class="nav-icon"><i class="fa-solid fa-envelope"></i></span>
+        <span class="nav-label">Notifications</span>
+        <span class="nav-glow"></span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-info">
+        <i class="fa-solid fa-circle" style="color:#22c55e;font-size:8px"></i>
+        MySQL · S3 Connected
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-wrap">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" placeholder="Quick search…" id="globalSearch"/>
+        </div>
+        <div class="topbar-avatar">AD</div>
+      </div>
+    </header>
+
+    <main class="content">
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% for cat, msg in messages %}
+          <div class="toast toast-{{ cat }}">
+            <i class="fa-solid {% if cat == 'success' %}fa-circle-check{% else %}fa-triangle-exclamation{% endif %}"></i>
+            {{ msg }}
+            <button onclick="this.parentElement.remove()" class="toast-close">×</button>
+          </div>
+        {% endfor %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

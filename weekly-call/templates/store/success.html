@@ -1,0 +1,22 @@
+{% extends "store/base.html" %}
+{% block title %}Order Confirmed — Techpathway BothCamp{% endblock %}
+{% block content %}
+<div class="store-page">
+  <div class="success-page">
+    <div class="success-icon"><i class="fa-solid fa-check"></i></div>
+    <h1 class="success-title">Order Confirmed!</h1>
+    <p class="success-sub">
+      Thank you for your purchase. Your order <strong>#{{ order_id }}</strong> has been placed successfully.
+      You'll receive a confirmation shortly.
+    </p>
+    <div style="background:var(--bg);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:28px;text-align:left">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Order details</div>
+      <div style="font-size:14px">Order #{{ order_id }} · Status: <span style="color:var(--warning);font-weight:600">Pending</span></div>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <a href="{{ url_for('store_home') }}" class="btn btn-dark">Continue Shopping</a>
+      <a href="{{ url_for('store_products') }}" class="btn btn-outline">Browse Products</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

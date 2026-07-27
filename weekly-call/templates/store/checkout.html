@@ -1,0 +1,197 @@
+{% extends "store/base.html" %}
+{% block title %}Checkout — Techpathway BothCamp{% endblock %}
+{% block content %}
+<div class="store-page">
+  <div style="padding:32px 0 8px">
+    <a href="{{ url_for('store_products') }}" style="font-size:13.5px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;margin-bottom:16px">
+      <i class="fa-solid fa-arrow-left"></i> Continue shopping
+    </a>
+    <h1 style="font-size:28px;font-weight:700;letter-spacing:-.5px">Checkout</h1>
+  </div>
+
+  <div class="checkout-grid">
+    <!-- Left: form -->
+    <div>
+      <form id="checkoutForm" onsubmit="submitOrder(event)">
+
+        <div class="checkout-section">
+          <h2 class="checkout-section-title"><i class="fa-solid fa-user" style="margin-right:8px;color:var(--muted)"></i>Contact</h2>
+          <div class="form-group">
+            <label class="form-label">Email *</label>
+            <input class="form-input" type="email" name="email" placeholder="you@example.com" required/>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">First name *</label>
+              <input class="form-input" type="text" name="first_name" required/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Last name *</label>
+              <input class="form-input" type="text" name="last_name" required/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone</label>
+            <input class="form-input" type="tel" name="phone" placeholder="+1 (555) 000-0000"/>
+          </div>
+        </div>
+
+        <div class="checkout-section">
+          <h2 class="checkout-section-title"><i class="fa-solid fa-location-dot" style="margin-right:8px;color:var(--muted)"></i>Shipping Address</h2>
+          <div class="form-group">
+            <label class="form-label">Address *</label>
+            <input class="form-input" type="text" name="address" placeholder="123 Main Street" required/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Apartment, suite, etc.</label>
+            <input class="form-input" type="text" name="address2" placeholder="Optional"/>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">City *</label>
+              <input class="form-input" type="text" name="city" required/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Province / State *</label>
+              <input class="form-input" type="text" name="province" required/>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Postal code *</label>
+              <input class="form-input" type="text" name="postal" required/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Country *</label>
+              <select class="form-input form-select" name="country" required>
+                <option value="CA">Canada</option>
+                <option value="US">United States</option>
+                <option value="GB">United Kingdom</option>
+                <option value="AU">Australia</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="checkout-section">
+          <h2 class="checkout-section-title"><i class="fa-solid fa-credit-card" style="margin-right:8px;color:var(--muted)"></i>Payment</h2>
+          <div style="padding:16px;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--muted);font-size:13.5px;display:flex;align-items:center;gap:10px">
+            <i class="fa-solid fa-lock" style="color:var(--success)"></i>
+            Payment integration ready — connect Stripe or any payment provider here.
+          </div>
+          <div class="form-group" style="margin-top:14px">
+            <label class="form-label">Card number</label>
+            <input class="form-input" type="text" placeholder="1234 5678 9012 3456" maxlength="19"/>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Expiry</label>
+              <input class="form-input" type="text" placeholder="MM / YY" maxlength="7"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">CVC</label>
+              <input class="form-input" type="text" placeholder="123" maxlength="4"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Order Notes</label>
+          <textarea class="form-input" name="notes" rows="2" placeholder="Special instructions, delivery notes…" style="resize:vertical"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-dark btn-full btn-lg" id="placeOrderBtn">
+          <i class="fa-solid fa-lock"></i> Place Order
+        </button>
+        <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:12px">
+          <i class="fa-solid fa-shield-halved"></i> Secured with SSL encryption
+        </p>
+      </form>
+    </div>
+
+    <!-- Right: order summary -->
+    <div>
+      <div class="order-summary-card">
+        <div class="order-summary-title">Order Summary</div>
+        <div id="checkoutItems">
+          <p style="color:var(--muted);font-size:13px;text-align:center;padding:16px 0">Your cart is empty.</p>
+        </div>
+        <hr class="order-summary-divider"/>
+        <div class="order-summary-row"><span>Subtotal</span><span id="checkoutSubtotal">$0.00</span></div>
+        <div class="order-summary-row"><span>Shipping</span><span style="color:var(--success)">Free</span></div>
+        <div class="order-summary-row"><span>Tax (est.)</span><span id="checkoutTax">$0.00</span></div>
+        <div class="order-summary-total"><span>Total</span><span id="checkoutTotal">$0.00</span></div>
+        <div class="payment-icons">
+          <span class="payment-icon">VISA</span>
+          <span class="payment-icon">MC</span>
+          <span class="payment-icon">AMEX</span>
+          <span class="payment-icon">PayPal</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function renderCheckoutSummary() {
+  const cart = getCart();
+  const container = document.getElementById('checkoutItems');
+  if (!cart.length) return;
+  container.innerHTML = cart.map(item => `
+    <div class="order-summary-item">
+      <div class="order-summary-item-img">
+        ${item.img ? `<img src="${item.img}" alt="${item.name}"/>` : '📦'}
+      </div>
+      <div style="flex:1">
+        <div class="order-summary-item-name">${item.name}</div>
+        <div class="order-summary-item-qty">Qty: ${item.qty}</div>
+      </div>
+      <div class="order-summary-item-price">$${(item.price * item.qty).toFixed(2)}</div>
+    </div>
+  `).join('');
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const tax = subtotal * 0.05;
+  document.getElementById('checkoutSubtotal').textContent = '$' + subtotal.toFixed(2);
+  document.getElementById('checkoutTax').textContent = '$' + tax.toFixed(2);
+  document.getElementById('checkoutTotal').textContent = '$' + (subtotal + tax).toFixed(2);
+}
+
+async function submitOrder(e) {
+  e.preventDefault();
+  const cart = getCart();
+  if (!cart.length) { showToast('Your cart is empty!'); return; }
+  const form = e.target;
+  const btn = document.getElementById('placeOrderBtn');
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Placing order…';
+  btn.disabled = true;
+  const data = {
+    name: form.first_name.value + ' ' + form.last_name.value,
+    email: form.email.value,
+    phone: form.phone.value,
+    address: [form.address.value, form.address2?.value, form.city.value, form.province.value, form.postal.value, form.country.value].filter(Boolean).join(', '),
+    notes: form.notes.value,
+    cart: cart
+  };
+  try {
+    const res  = await fetch('/store/order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    const json = await res.json();
+    if (json.order_id) {
+      clearCart();
+      window.location.href = '/store/success?order=' + json.order_id;
+    } else {
+      showToast('Error: ' + (json.error || 'Something went wrong'));
+      btn.innerHTML = '<i class="fa-solid fa-lock"></i> Place Order';
+      btn.disabled = false;
+    }
+  } catch(err) {
+    showToast('Network error — please try again');
+    btn.innerHTML = '<i class="fa-solid fa-lock"></i> Place Order';
+    btn.disabled = false;
+  }
+}
+
+renderCheckoutSummary();
+</script>
+{% endblock %}

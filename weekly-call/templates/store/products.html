@@ -1,0 +1,89 @@
+{% extends "store/base.html" %}
+{% block title %}All Products — Techpathway BothCamp{% endblock %}
+{% block content %}
+<div class="store-page">
+  <div style="padding:32px 0 24px">
+    <h1 style="font-size:30px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px">All Products</h1>
+    <p style="color:var(--muted);font-size:14px">{{ products|length }} product{{ 's' if products|length != 1 }}</p>
+  </div>
+
+  <form class="shop-controls" method="get" id="filterForm">
+    <div class="search-box">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="search" name="q" value="{{ q }}" placeholder="Search products…" oninput="debounceSubmit()"/>
+    </div>
+    <select name="category" class="filter-select" onchange="this.form.submit()">
+      <option value="">All categories</option>
+      {% for c in categories %}
+      <option value="{{ c.id }}" {{ 'selected' if cat == c.id|string }}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="sort" class="filter-select" onchange="this.form.submit()">
+      <option value="" {{ 'selected' if not sort }}>Sort: Default</option>
+      <option value="price_asc"  {{ 'selected' if sort=='price_asc'  }}>Price: Low → High</option>
+      <option value="price_desc" {{ 'selected' if sort=='price_desc' }}>Price: High → Low</option>
+      <option value="name"       {{ 'selected' if sort=='name'       }}>Name: A → Z</option>
+    </select>
+    {% if q or cat %}
+    <a href="{{ url_for('store_products') }}" class="btn btn-outline btn-sm">Clear filters</a>
+    {% endif %}
+  </form>
+
+  {% if products %}
+  <div class="product-grid">
+    {% for p in products %}
+    <div class="product-card">
+      <a href="{{ url_for('store_product', pid=p.id) }}">
+        <div class="product-card-img">
+          {% if p.image_url %}
+          <img src="{{ p.image_url }}" alt="{{ p.name }}"/>
+          {% else %}
+          📦
+          {% endif %}
+          {% if p.stock < 10 and p.stock > 0 %}
+          <span class="product-card-badge">Low Stock</span>
+          {% elif p.stock == 0 %}
+          <span class="product-card-badge" style="background:var(--muted)">Sold Out</span>
+          {% endif %}
+        </div>
+      </a>
+      <div class="product-card-body">
+        <div class="product-card-cat">{{ p.category_name or 'General' }}</div>
+        <a href="{{ url_for('store_product', pid=p.id) }}">
+          <div class="product-card-name">{{ p.name }}</div>
+        </a>
+        <div class="product-card-footer">
+          <span class="product-price">${{ "%.2f"|format(p.price) }}</span>
+          {% if p.stock > 0 %}
+          <button class="add-to-cart-btn"
+                  onclick="addToCart({{ p.id }}, '{{ p.name|replace("'","\\'") }}', {{ p.price }}, '{{ p.image_url or '' }}')"
+                  title="Add to cart">
+            <i class="fa-solid fa-plus"></i>
+          </button>
+          {% else %}
+          <button class="add-to-cart-btn" disabled style="opacity:.4;cursor:not-allowed">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:80px 24px;color:var(--muted)">
+    <i class="fa-solid fa-magnifying-glass" style="font-size:36px;margin-bottom:16px;display:block;color:var(--border)"></i>
+    <p style="font-size:16px">No products found.</p>
+    <a href="{{ url_for('store_products') }}" class="btn btn-outline btn-sm" style="margin-top:16px">Clear search</a>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+let debounceTimer;
+function debounceSubmit() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => document.getElementById('filterForm').submit(), 400);
+}
+</script>
+{% endblock %}

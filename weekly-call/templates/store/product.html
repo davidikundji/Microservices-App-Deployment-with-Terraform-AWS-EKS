@@ -1,0 +1,130 @@
+{% extends "store/base.html" %}
+{% block title %}{{ product.name }} — ShopDB{% endblock %}
+{% block content %}
+<div class="store-page">
+  <div class="breadcrumb">
+    <a href="{{ url_for('store_home') }}">Home</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="{{ url_for('store_products') }}">Products</a>
+    {% if product.category_name %}
+    <span class="breadcrumb-sep">/</span>
+    <a href="{{ url_for('store_products') }}?category={{ product.category_id }}">{{ product.category_name }}</a>
+    {% endif %}
+    <span class="breadcrumb-sep">/</span>
+    <span style="color:var(--text)">{{ product.name }}</span>
+  </div>
+
+  <div class="product-detail">
+    <!-- Gallery -->
+    <div class="product-detail-gallery">
+      <div class="product-detail-main-img">
+        {% if product.image_url %}
+        <img src="{{ product.image_url }}" alt="{{ product.name }}"/>
+        {% else %}
+        📦
+        {% endif %}
+      </div>
+      {% if product.video_url %}
+      <div class="product-detail-video">
+        <video src="{{ product.video_url }}" controls style="width:100%;border-radius:var(--radius)"></video>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Info -->
+    <div class="product-detail-info">
+      <div class="product-detail-cat">{{ product.category_name or 'General' }}</div>
+      <h1 class="product-detail-name">{{ product.name }}</h1>
+      <div class="product-detail-price">${{ "%.2f"|format(product.price) }}</div>
+
+      {% if product.description %}
+      <p class="product-detail-desc">{{ product.description }}</p>
+      {% endif %}
+
+      <hr class="product-detail-divider"/>
+
+      <!-- Stock -->
+      <div>
+        {% if product.stock > 10 %}
+        <span class="stock-badge"><span class="stock-dot in"></span> In stock ({{ product.stock }} available)</span>
+        {% elif product.stock > 0 %}
+        <span class="stock-badge"><span class="stock-dot low"></span> Low stock — only {{ product.stock }} left</span>
+        {% else %}
+        <span class="stock-badge"><span class="stock-dot out"></span> Out of stock</span>
+        {% endif %}
+      </div>
+
+      {% if product.stock > 0 %}
+      <!-- Qty + Add to cart -->
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Quantity</div>
+        <div class="qty-selector">
+          <button class="qty-btn" onclick="changeQty(-1)">−</button>
+          <input class="qty-val" type="number" id="qtyInput" value="1" min="1" max="{{ product.stock }}"/>
+          <button class="qty-btn" onclick="changeQty(1)">+</button>
+        </div>
+      </div>
+      <button class="btn btn-dark btn-full btn-lg"
+              onclick="addToCartQty({{ product.id }}, '{{ product.name|replace("'","\\'") }}', {{ product.price }}, '{{ product.image_url or '' }}')">
+        <i class="fa-solid fa-bag-shopping"></i> Add to Cart
+      </button>
+      {% else %}
+      <button class="btn btn-outline btn-full btn-lg" disabled style="opacity:.5;cursor:not-allowed">
+        Out of Stock
+      </button>
+      {% endif %}
+
+      <!-- SKU -->
+      {% if product.sku %}
+      <div style="font-size:12px;color:var(--muted)">SKU: {{ product.sku }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Related products -->
+  {% if related %}
+  <section style="margin-top:64px;padding-top:40px;border-top:1px solid var(--border)">
+    <div class="section-header">
+      <h2 class="section-title">More in {{ product.category_name }}</h2>
+      <a href="{{ url_for('store_products') }}?category={{ product.category_id }}" class="section-link">View all →</a>
+    </div>
+    <div class="product-grid">
+      {% for p in related %}
+      <div class="product-card">
+        <a href="{{ url_for('store_product', pid=p.id) }}">
+          <div class="product-card-img">
+            {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.name }}"/>{% else %}📦{% endif %}
+          </div>
+        </a>
+        <div class="product-card-body">
+          <div class="product-card-cat">{{ p.category_name or '' }}</div>
+          <a href="{{ url_for('store_product', pid=p.id) }}"><div class="product-card-name">{{ p.name }}</div></a>
+          <div class="product-card-footer">
+            <span class="product-price">${{ "%.2f"|format(p.price) }}</span>
+            {% if p.stock > 0 %}
+            <button class="add-to-cart-btn" onclick="addToCart({{ p.id }}, '{{ p.name|replace("'","\\'") }}', {{ p.price }}, '{{ p.image_url or '' }}')">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+
+<script>
+function changeQty(delta) {
+  const input = document.getElementById('qtyInput');
+  const max = parseInt(input.max);
+  const val = Math.max(1, Math.min(max, parseInt(input.value) + delta));
+  input.value = val;
+}
+function addToCartQty(id, name, price, img) {
+  const qty = parseInt(document.getElementById('qtyInput').value) || 1;
+  for (let i = 0; i < qty; i++) addToCart(id, name, price, img, i === qty - 1);
+}
+</script>
+{% endblock %}

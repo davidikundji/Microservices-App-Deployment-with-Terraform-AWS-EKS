@@ -1,0 +1,25 @@
+# /etc/systemd/system/shopdb.service
+# Auto-starts ShopDB on boot and restarts on crash
+
+[Unit]
+Description=Techpathway BothCamp — ShopDB Flask App
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/shopdb
+Environment="PATH=/var/www/shopdb/venv/bin"
+EnvironmentFile=/var/www/shopdb/.env
+ExecStart=/var/www/shopdb/venv/bin/gunicorn \
+    --config /var/www/shopdb/gunicorn.conf.py \
+    wsgi:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,109 @@
+{% extends "store/base.html" %}
+{% block title %}Techpathway BothCamp{% endblock %}
+{% block content %}
+
+<div class="store-page">
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-text">
+      <p class="hero-eyebrow">New arrivals · Free shipping</p>
+      <h1 class="hero-title">Everything you need, delivered.</h1>
+      <p class="hero-sub">Shop our curated collection of electronics, clothing, home goods, sports gear, and more.</p>
+      <div class="hero-actions">
+        <a href="{{ url_for('store_products') }}" class="btn btn-dark btn-lg">
+          Shop Now <i class="fa-solid fa-arrow-right"></i>
+        </a>
+        <a href="{{ url_for('store_products') }}?category=" class="btn btn-outline btn-lg">Browse All</a>
+      </div>
+    </div>
+    <div class="hero-img">
+      <div class="hero-img-placeholder">🛍️</div>
+    </div>
+  </section>
+
+  <!-- Categories -->
+  {% if categories %}
+  <section style="margin-bottom:56px">
+    <div class="section-header">
+      <h2 class="section-title">Shop by Category</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+      {% for cat in categories %}
+      <a href="{{ url_for('store_products') }}?category={{ cat.id }}"
+         style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+                padding:24px 16px;border:1.5px solid var(--border);border-radius:var(--radius-lg);
+                background:var(--white);transition:all .18s;text-align:center"
+         onmouseover="this.style.borderColor='var(--text)';this.style.background='var(--bg)'"
+         onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--white)'">
+        <span style="font-size:28px">
+          {% if 'Elec' in cat.name %}🔌{% elif 'Cloth' in cat.name %}👕{% elif 'Home' in cat.name %}🏠{% elif 'Sport' in cat.name %}⚽{% elif 'Book' in cat.name %}📚{% else %}📦{% endif %}
+        </span>
+        <span style="font-size:13.5px;font-weight:600;color:var(--text)">{{ cat.name }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Featured Products -->
+  <section style="margin-bottom:56px">
+    <div class="section-header">
+      <h2 class="section-title">Featured Products</h2>
+      <a href="{{ url_for('store_products') }}" class="section-link">View all →</a>
+    </div>
+    <div class="product-grid">
+      {% for p in featured %}
+      <div class="product-card">
+        <a href="{{ url_for('store_product', pid=p.id) }}">
+          <div class="product-card-img">
+            {% if p.image_url %}
+            <img src="{{ p.image_url }}" alt="{{ p.name }}"/>
+            {% else %}
+            📦
+            {% endif %}
+            {% if p.stock < 10 and p.stock > 0 %}
+            <span class="product-card-badge">Low Stock</span>
+            {% elif p.stock == 0 %}
+            <span class="product-card-badge" style="background:var(--muted)">Sold Out</span>
+            {% endif %}
+          </div>
+        </a>
+        <div class="product-card-body">
+          <div class="product-card-cat">{{ p.category_name or 'General' }}</div>
+          <a href="{{ url_for('store_product', pid=p.id) }}">
+            <div class="product-card-name">{{ p.name }}</div>
+          </a>
+          <div class="product-card-footer">
+            <span class="product-price">${{ "%.2f"|format(p.price) }}</span>
+            {% if p.stock > 0 %}
+            <button class="add-to-cart-btn"
+                    onclick="addToCart({{ p.id }}, '{{ p.name|replace("'","\\'") }}', {{ p.price }}, '{{ p.image_url or '' }}')"
+                    title="Add to cart">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+            {% else %}
+            <button class="add-to-cart-btn" disabled style="opacity:.4;cursor:not-allowed">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Banner -->
+  <section style="background:var(--text);border-radius:var(--radius-lg);padding:48px 56px;
+                  display:flex;align-items:center;justify-content:space-between;margin-bottom:56px;gap:24px">
+    <div>
+      <h2 style="color:#fff;font-size:26px;font-weight:700;margin-bottom:8px">Free shipping on all orders</h2>
+      <p style="color:rgba(255,255,255,.6);font-size:15px">No minimum order required. Delivered to your door.</p>
+    </div>
+    <a href="{{ url_for('store_products') }}" class="btn btn-outline btn-lg" style="flex-shrink:0;background:transparent;color:#fff;border-color:rgba(255,255,255,.4)">
+      Shop Now
+    </a>
+  </section>
+</div>
+
+{% endblock %}

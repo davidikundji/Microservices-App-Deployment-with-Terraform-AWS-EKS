@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>{% block title %}Techpathway BothCamp{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/store.css') }}"/>
+</head>
+<body>
+
+<header class="store-header">
+  <div class="store-header-inner">
+    <a href="{{ url_for('store_home') }}" class="store-logo">Techpathway <span>BothCamp</span></a>
+    <nav class="store-nav">
+      <a href="{{ url_for('store_home') }}" class="{{ 'active' if request.endpoint == 'store_home' }}">Home</a>
+      <a href="{{ url_for('store_products') }}" class="{{ 'active' if request.endpoint == 'store_products' }}">All Products</a>
+    </nav>
+    <div class="store-actions">
+      <button class="cart-btn" onclick="toggleCart()">
+        <i class="fa-solid fa-bag-shopping"></i>
+        Cart
+        <span class="cart-count" id="cartCount">0</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+{% block content %}{% endblock %}
+
+<footer class="store-footer">
+  <div class="store-footer-inner">
+    <span class="store-footer-copy">© 2026 Techpathway BothCamp. All rights reserved.</span>
+    <div class="store-footer-links">
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+      <a href="#">Contact</a>
+      <a href="{{ url_for('dashboard') }}">Admin ↗</a>
+    </div>
+  </div>
+</footer>
+
+<!-- Cart Drawer -->
+<div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+<div class="cart-drawer" id="cartDrawer">
+  <div class="cart-drawer-header">
+    <span class="cart-drawer-title">Your Cart (<span id="drawerCount">0</span>)</span>
+    <button class="cart-close" onclick="toggleCart()"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div class="cart-items" id="cartItems">
+    <div class="cart-empty">
+      <i class="fa-solid fa-bag-shopping"></i>
+      <span>Your cart is empty</span>
+    </div>
+  </div>
+  <div class="cart-drawer-footer">
+    <div class="cart-summary">
+      <div class="cart-summary-row"><span>Subtotal</span><span id="cartSubtotal">$0.00</span></div>
+      <div class="cart-summary-row"><span>Shipping</span><span>Free</span></div>
+      <div class="cart-summary-row total"><span>Total</span><span id="cartTotal">$0.00</span></div>
+    </div>
+    <a href="{{ url_for('store_checkout') }}" class="btn btn-dark btn-full btn-lg" id="checkoutBtn" style="pointer-events:none;opacity:.4">
+      Checkout <i class="fa-solid fa-arrow-right"></i>
+    </a>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="storeToast" style="display:none" class="store-toast"></div>
+
+<script src="{{ url_for('static', filename='js/store.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

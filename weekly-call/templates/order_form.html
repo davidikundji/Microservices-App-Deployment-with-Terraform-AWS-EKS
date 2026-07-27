@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}New Order — ShopDB{% endblock %}
+{% block page_title %}New Order{% endblock %}
+{% block content %}
+<div class="page-hdr">
+  <h2>Create Order</h2>
+  <a href="{{ url_for('orders') }}" class="btn"><i class="fa-solid fa-arrow-left"></i> Back</a>
+</div>
+<div class="card form-wrap" style="max-width:900px">
+  <form method="post" id="orderForm">
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Customer *</label>
+        <select class="form-control" name="customer_id" required>
+          <option value="">Select customer…</option>
+          {% for c in customers %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <input class="form-control" value="Confirmed (automatic)" disabled />
+        <small style="opacity:.6">New orders are auto-confirmed — warehouse and the customer are notified immediately. Change status afterward from the order detail page.</small>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea class="form-control" name="notes" rows="2"></textarea>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <div class="form-label" style="margin-bottom:10px">Order Items</div>
+      <div id="items"></div>
+      <button type="button" class="btn" onclick="addItem()"><i class="fa-solid fa-plus"></i> Add Item</button>
+    </div>
+
+    <div class="order-total">Order Total: <span id="orderTotal" style="color:var(--accent2)">$0.00</span></div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Create Order</button>
+    </div>
+  </form>
+</div>
+
+<script>
+const products = {
+  {% for p in products %}"{{ p.id }}": { name: "{{ p.name|replace('"','\\\"') }}", price: {{ p.price }} },{% endfor %}
+};
+
+function addItem() {
+  const div = document.createElement('div');
+  div.className = 'item-row';
+  div.innerHTML = `
+    <select name="product_id[]" onchange="onProductChange(this)" style="flex:2" class="form-control">
+      <option value="">Select product…</option>
+      ${Object.entries(products).map(([id,p]) => `<option value="${id}" data-price="${p.price}">${p.name} — $${p.price.toFixed(2)}</option>`).join('')}
+    </select>
+    <input type="number" name="quantity[]" min="1" value="1" class="form-control" style="width:90px" oninput="recalc()"/>
+    <input type="number" name="unit_price[]" step="0.01" class="form-control" style="width:110px" readonly placeholder="Price"/>
+    <button type="button" class="btn btn-sm btn-danger btn-icon" onclick="this.parentElement.remove();recalc()">
+      <i class="fa-solid fa-times"></i>
+    </button>`;
+  document.getElementById('items').appendChild(div);
+}
+
+function onProductChange(sel) {
+  const opt   = sel.options[sel.selectedIndex];
+  const price = opt.dataset.price || '';
+  sel.closest('.item-row').querySelector('[name="unit_price[]"]').value = price;
+  recalc();
+}
+
+function recalc() {
+  let total = 0;
+  document.querySelectorAll('.item-row').forEach(row => {
+    const price = parseFloat(row.querySelector('[name="unit_price[]"]').value) || 0;
+    const qty   = parseInt(row.querySelector('[name="quantity[]"]').value) || 0;
+    total += price * qty;
+  });
+  document.getElementById('orderTotal').textContent = '$' + total.toFixed(2);
+}
+
+addItem();
+</script>
+{% endblock %}

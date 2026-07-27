@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — ShopDB{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon purple"><i class="fa-solid fa-box-open"></i></div>
+    <div><div class="stat-label">Products</div><div class="stat-value">{{ stats.products }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon blue"><i class="fa-solid fa-users"></i></div>
+    <div><div class="stat-label">Customers</div><div class="stat-value">{{ stats.customers }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon green"><i class="fa-solid fa-cart-shopping"></i></div>
+    <div><div class="stat-label">Orders</div><div class="stat-value">{{ stats.orders }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon amber"><i class="fa-solid fa-dollar-sign"></i></div>
+    <div><div class="stat-label">Revenue</div><div class="stat-value">${{ "%.0f"|format(stats.revenue) }}</div></div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Recent Orders</span>
+      <a href="{{ url_for('orders') }}" class="btn btn-sm">View all</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Customer</th><th>Status</th><th>Total</th><th>Date</th></tr></thead>
+        <tbody>
+          {% for o in recent_orders %}
+          <tr>
+            <td><a href="{{ url_for('order_detail', oid=o.id) }}" class="td-link">#{{ o.id }}</a></td>
+            <td>{{ o.customer }}</td>
+            <td><span class="badge badge-{{ o.status }}">{{ o.status }}</span></td>
+            <td class="fw-600">${{ "%.2f"|format(o.total) }}</td>
+            <td class="text-muted text-sm">{{ o.date }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Orders by Status</span></div>
+      {% set total_orders = status_counts | sum(attribute='cnt') %}
+      {% for row in status_counts %}
+      <div class="mini-bar">
+        <span class="mini-bar-label">{{ row.status }}</span>
+        <div class="mini-bar-track">
+          <div class="mini-bar-fill"
+               style="width:{{ ((row.cnt / total_orders) * 100)|round }}%;
+                      background:{% if row.status=='delivered' %}#22c55e{% elif row.status=='shipped' %}#a78bfa{% elif row.status=='processing' %}#60a5fa{% elif row.status=='cancelled' %}#ef4444{% else %}#f59e0b{% endif %}">
+          </div>
+        </div>
+        <span class="text-muted text-sm">{{ row.cnt }}</span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Low Stock</span></div>
+      {% for p in low_stock %}
+      <div class="flex items-center gap-2" style="margin-bottom:10px">
+        {% if p.image_url %}
+        <img src="{{ p.image_url }}" style="width:36px;height:36px;object-fit:cover;border-radius:8px" />
+        {% else %}
+        <div style="width:36px;height:36px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;color:var(--muted)"><i class="fa-solid fa-box"></i></div>
+        {% endif %}
+        <span style="flex:1;font-size:13px">{{ p.name }}</span>
+        <span class="badge {% if p.stock < 10 %}badge-cancelled{% else %}badge-pending{% endif %}">{{ p.stock }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if top_products %}
+<div class="card">
+  <div class="card-header"><span class="card-title">Top Selling Products</span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">
+    {% for p in top_products %}
+    <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg3);border-radius:var(--radius)">
+      {% if p.image_url %}
+      <img src="{{ p.image_url }}" style="width:42px;height:42px;object-fit:cover;border-radius:8px" />
+      {% else %}
+      <div style="width:42px;height:42px;border-radius:8px;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--muted)"><i class="fa-solid fa-box"></i></div>
+      {% endif %}
+      <div>
+        <div style="font-size:13px;font-weight:600">{{ p.name[:22] }}{% if p.name|length > 22 %}…{% endif %}</div>
+        <div style="font-size:12px;color:var(--muted)">{{ p.sold }} sold</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

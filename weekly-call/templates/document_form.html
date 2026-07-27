@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}New Document — ShopDB{% endblock %}
+{% block page_title %}New Document{% endblock %}
+{% block content %}
+<div class="page-hdr">
+  <h2>New Document</h2>
+  <a href="{{ url_for('documents') }}" class="btn"><i class="fa-solid fa-arrow-left"></i> Back</a>
+</div>
+<div class="card form-wrap">
+  <form method="post" enctype="multipart/form-data">
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Title *</label>
+        <input class="form-control" type="text" name="title" required/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select class="form-control" name="doc_type">
+          {% for t in ['note','invoice','return','complaint','other'] %}
+          <option value="{{ t }}">{{ t|title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link to Order</label>
+        <select class="form-control" name="order_id">
+          <option value="">None</option>
+          {% for o in orders %}<option value="{{ o.id }}">#{{ o.id }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link to Product</label>
+        <select class="form-control" name="product_id">
+          <option value="">None</option>
+          {% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Content</label>
+      <textarea class="form-control" name="content" rows="5" placeholder="Notes, complaint details, invoice text…"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label"><i class="fa-solid fa-cloud-arrow-up" style="margin-right:6px;color:var(--accent2)"></i>Attachment (S3 — image, video, PDF, etc.)</label>
+      <label class="file-drop">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+        <div style="font-size:14px;margin-bottom:4px">Click or drag file here</div>
+        <div style="font-size:12px">Images, videos, PDF, DOCX, TXT</div>
+        <input type="file" name="file"/>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Document</button>
+      <a href="{{ url_for('documents') }}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

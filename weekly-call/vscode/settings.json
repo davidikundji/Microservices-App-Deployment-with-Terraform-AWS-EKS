@@ -1,0 +1,22 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python3",
+  "editor.formatOnSave": true,
+  "editor.tabSize": 4,
+  "files.associations": {
+    "*.html": "html",
+    "*.css": "css",
+    "*.js": "javascript",
+    "*.env*": "dotenv"
+  },
+  "emmet.includeLanguages": {
+    "html": "html"
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "venv": true,
+    "*.db-journal": true
+  },
+  "editor.rulers": [100],
+  "python.linting.enabled": true
+}

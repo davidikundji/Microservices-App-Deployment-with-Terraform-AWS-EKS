@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Order #{{ order.id }} — ShopDB{% endblock %}
+{% block page_title %}Order #{{ order.id }}{% endblock %}
+{% block content %}
+<div class="page-hdr">
+  <h2>Order #{{ order.id }} <span class="badge badge-{{ order.status }}" style="margin-left:10px">{{ order.status }}</span></h2>
+  <a href="{{ url_for('orders') }}" class="btn"><i class="fa-solid fa-arrow-left"></i> Back</a>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <div class="card-header"><span class="card-title">Customer</span></div>
+    <div class="customer-row" style="margin-bottom:16px">
+      {% if order.avatar_url %}
+      <img src="{{ order.avatar_url }}" class="avatar" style="width:52px;height:52px"/>
+      {% else %}
+      <div class="avatar" style="width:52px;height:52px;font-size:16px">{{ order.customer_name[:2].upper() }}</div>
+      {% endif %}
+      <div>
+        <div class="fw-600" style="font-size:15px">{{ order.customer_name }}</div>
+        <div class="text-muted text-sm">{{ order.email }}</div>
+        <div class="text-muted text-sm">{{ order.address or '' }}</div>
+      </div>
+    </div>
+
+    <dl class="dl-grid">
+      <dt>Order Total</dt><dd class="fw-600" style="color:var(--accent2)">${{ "%.2f"|format(order.total) }}</dd>
+      <dt>Notes</dt><dd class="text-muted">{{ order.notes or '—' }}</dd>
+    </dl>
+
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="form-label" style="margin-bottom:10px">Update Status</div>
+      <form method="post" action="{{ url_for('update_order_status', oid=order.id) }}" class="flex gap-2">
+        <select name="status" class="form-control" style="flex:1">
+          {% for s in ['pending','confirmed','processing','shipped','delivered','cancelled'] %}
+          <option value="{{ s }}" {{ 'selected' if order.status==s }}>{{ s|title }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-primary"><i class="fa-solid fa-check"></i> Update</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Order Items</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Subtotal</th></tr></thead>
+        <tbody>
+          {% for i in items %}
+          <tr>
+            <td>
+              <div class="flex items-center gap-2">
+                {% if i.image_url %}
+                <img src="{{ i.image_url }}" style="width:32px;height:32px;object-fit:cover;border-radius:6px"/>
+                {% endif %}
+                <div>
+                  <div class="fw-600">{{ i.product_name }}</div>
+                  <div class="mono">{{ i.sku or '' }}</div>
+                </div>
+              </div>
+            </td>
+            <td>{{ i.quantity }}</td>
+            <td>${{ "%.2f"|format(i.unit_price) }}</td>
+            <td class="fw-600">${{ "%.2f"|format(i.quantity * i.unit_price) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-muted" style="text-align:center">No items.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if docs %}
+<div class="card">
+  <div class="card-header"><span class="card-title">Linked Documents</span></div>
+  <div class="doc-grid">
+    {% for d in docs %}
+    <div class="doc-card">
+      <div class="doc-card-header">
+        <span class="doc-card-title">{{ d.title }}</span>
+        <span class="badge badge-processing">{{ d.doc_type }}</span>
+      </div>
+      <p class="doc-card-body">{{ d.content or '' }}</p>
+      {% if d.file_url %}
+      <a href="{{ d.file_url }}" target="_blank" class="doc-attachment"><i class="fa-solid fa-paperclip"></i> Attachment</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

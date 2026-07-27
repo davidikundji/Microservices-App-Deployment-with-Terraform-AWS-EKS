@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Documents — ShopDB{% endblock %}
+{% block page_title %}Documents{% endblock %}
+{% block content %}
+<div class="page-hdr">
+  <h2>Documents</h2>
+  <a href="{{ url_for('new_document') }}" class="btn btn-primary"><i class="fa-solid fa-plus"></i> New Document</a>
+</div>
+<form class="filter-bar" method="get">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search…" style="flex:1"/>
+  <select name="type">
+    <option value="">All types</option>
+    {% for t in ['note','invoice','return','complaint','other'] %}
+    <option value="{{ t }}" {{ 'selected' if doc_type==t }}>{{ t|title }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-primary">Filter</button>
+  {% if q or doc_type %}<a href="{{ url_for('documents') }}" class="btn">Clear</a>{% endif %}
+</form>
+<div class="doc-grid">
+  {% for d in docs %}
+  <div class="doc-card">
+    <div class="doc-card-header">
+      <span class="doc-card-title">{{ d.title }}</span>
+      <span class="badge badge-processing">{{ d.doc_type }}</span>
+    </div>
+    <p class="doc-card-body">{{ d.content[:180] if d.content else '—' }}{% if d.content and d.content|length > 180 %}…{% endif %}</p>
+    <div class="doc-card-meta">
+      {% if d.order_ref %}<span><i class="fa-solid fa-cart-shopping"></i> Order #{{ d.order_ref }}</span>{% endif %}
+      {% if d.product_name %}<span><i class="fa-solid fa-box"></i> {{ d.product_name }}</span>{% endif %}
+    </div>
+    {% if d.file_url %}
+    <a href="{{ d.file_url }}" target="_blank" class="doc-attachment"><i class="fa-solid fa-paperclip"></i> View attachment (S3)</a>
+    {% endif %}
+    <div style="margin-top:12px">
+      <form method="post" action="{{ url_for('delete_document', did=d.id) }}" onsubmit="return confirm('Delete?')">
+        <button class="btn btn-sm btn-danger"><i class="fa-solid fa-trash"></i> Delete</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-muted" style="grid-column:1/-1;padding:32px;text-align:center">No documents found.</p>
+  {% endfor %}
+</div>
+{% endblock %}
