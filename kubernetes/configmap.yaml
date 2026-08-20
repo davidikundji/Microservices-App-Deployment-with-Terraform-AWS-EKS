@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: techpathway-config
+  namespace: techpathway
+  labels:
+    app.kubernetes.io/part-of: techpathway-platform
+data:
+  AWS_REGION: "us-east-1"
+
+  # Internal Kubernetes Service addresses
+  NOTIFICATION_SERVICE_URL: "http://action-messages:80"
+  WAREHOUSE_SERVICE_URL: "http://techpathway-warehouse:80"
+
+  # Public AWS Network Load Balancer addresses
+  NOTIFICATION_PUBLIC_URL: "https://notifications.example.com"
+  WAREHOUSE_PUBLIC_URL: "https://warehouse.example.com"
+
+  # Action Messages configuration
+  SMTP_HOST: ""
+  SMTP_PORT: "587"
+  FROM_EMAIL: "orders@techpathway.example"
+  FROM_NAME: "The TechPathway Team"
+  ALWAYS_CC_EMAIL: "demo@example.com"

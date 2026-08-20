@@ -62,7 +62,7 @@ FROM_EMAIL = os.getenv("FROM_EMAIL", "orders@techpathway-bothcamp.example").stri
 FROM_NAME = os.getenv("FROM_NAME", "The Techpathway Team, Weekly Class").strip()
 # Always CC'd on every order-confirmation email sent (e.g. the instructor /
 # program lead who wants a copy of every "I built it" notification).
-ALWAYS_CC_EMAIL = os.getenv("ALWAYS_CC_EMAIL", "m.olujobi1@gmail.com").strip()
+ALWAYS_CC_EMAIL = os.getenv("ALWAYS_CC_EMAIL", "demo@example.com").strip()
 # If SMTP_HOST isn't set, the service runs in "demo mode": it renders the
 # email and writes it to the audit log/console instead of sending it — handy
 # for a bootcamp project where nobody wants to wire up real SMTP creds.

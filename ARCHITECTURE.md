@@ -1,199 +1,313 @@
-# Techpathway BothCamp — Multi-Service Architecture
+# TechPathway Platform Architecture
 
-What started as a single Flask app is now three independently deployable
-services, each with its own codebase and its own Dockerfile. They only talk
-to each other over HTTP — no shared filesystem, no shared database.
+This document describes the verified AWS and Kubernetes architecture implemented for the TechPathway enterprise capstone. The Flask application source was supplied for the project; the infrastructure, container deployment, Kubernetes configuration, autoscaling, monitoring, troubleshooting, and cleanup were implemented as the DevOps portion of the capstone.
 
-This repo covers the services and their images only. The Kubernetes cluster,
-manifests, secrets management, ingress, and monitoring are all owned by the
-DevOps team's infrastructure repo — not here. What DevOps needs from this
-repo is three container images and the contract described below.
+## Current environment status
 
-```
-                          ┌─────────────────────┐
-                          │   main-app (:5111)   │
-                          │  storefront + admin  │
-                          │  MySQL/RDS or SQLite │
-                          └─────────┬─────┬──────┘
-                     order placed → auto-confirmed
-                                    │     │
-                                    ▼     ▼
-                ┌────────────────────┐ ┌──────────────────────────┐
-                │ action-messages     │ │ techpathway-warehouse     │
-                │ (:5001)             │ │ (:5002)                   │
-                │ emails the customer │ │ inventory + fulfillment   │
-                │ + CC's a fixed addr │ │ own SQLite DB             │
-                │ own SQLite log      │ │                           │
-                └────────────────────┘ └──────────────────────────┘
-```
+The architecture was deployed and validated in `us-east-1`, then intentionally destroyed to stop ongoing AWS charges. The Terraform source, Kubernetes manifests, sanitized evidence, and deployment procedures remain in the repository so the environment can be recreated.
 
-## The 3 services
+## System context
 
-**`weekly-call/`** — main-app (storefront brand: "Techpathway BothCamp"). The existing Flask admin dashboard +
-storefront. Orders are **auto-confirmed on placement** — both the storefront
-checkout and the admin "New Order" form set status to `confirmed`
-immediately and call out to the other two services right away. No manual
-status change is needed to trigger the warehouse hand-off or the
-confirmation email; the admin order-detail page can still move a confirmed
-order through `processing → shipped → delivered` afterward.
+The platform contains three independently deployable Flask services:
 
-**`action-messages/`** (formerly `notification-service`) — one job:
-`POST /notify/order-confirmed` generates a tracking number, then sends (or,
-without SMTP configured, logs) a short "congratulations, you built the
-Techpathway Kubernetes project!" email to the customer, **always CC'd to
-`ALWAYS_CC_EMAIL`** (default `m.olujobi1@gmail.com`) unless the customer's
-own address happens to match it. Signed from **The Techpathway Team, Weekly
-Class**. Has its own dashboard at `/` showing every message sent, its
-tracking number, and who it was CC'd to. Own SQLite audit log.
+| Service | Repository directory | Responsibility | Container port | Health check |
+|---|---|---|---:|---|
+| Weekly Call | `weekly-call/` | Customer storefront, administrative dashboard, products, customers, and orders | 5111 | `GET /health` |
+| Action Messages | `action-messages/` | Confirmation messages, tracking-number generation, and notification audit log | 5001 | `GET /health` |
+| TechPathway Warehouse | `techpathway-warehouse/` | Inventory updates and fulfillment workflow | 5002 | `GET /health` |
 
-**`techpathway-warehouse/`** (formerly `warehouse-service`) — receives every
-new order via `POST /warehouse/orders`, decrements its own inventory, and
-tracks each order through `received → picking → packed → shipped` on a
-small kanban board at `/`. Own SQLite DB, seeded with the same 8 SKUs as the
-storefront.
+The services communicate only through HTTP APIs. They do not share a filesystem or database.
 
-## The contract DevOps needs
+## Canonical architecture
 
-Whoever writes the Deployment/Service manifests for these three images
-needs to know:
+```mermaid
+flowchart TB
+    user["Browser / API client"]
+    awscli["Terraform, AWS CLI,<br/>Docker, kubectl, Helm"]
 
-| Service | Image built from | Port | Health check | Required env vars |
-|---|---|---|---|---|
-| main-app | `weekly-call/` | 5111 | `GET /health` | `SECRET_KEY`, `NOTIFICATION_SERVICE_URL`, `WAREHOUSE_SERVICE_URL`, `NOTIFICATION_PUBLIC_URL`, `WAREHOUSE_PUBLIC_URL`. Optional: `MYSQL_*` / `S3_*` / `AWS_*` (falls back to local SQLite + local images if unset) |
-| action-messages | `action-messages/` | 5001 | `GET /health` | `FROM_EMAIL`, `FROM_NAME`, `ALWAYS_CC_EMAIL`. Optional: `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD` (blank `SMTP_HOST` = demo mode, logs instead of sending) |
-| techpathway-warehouse | `techpathway-warehouse/` | 5002 | `GET /health` | none required |
+    subgraph region["AWS Region: us-east-1"]
+        ecr["Amazon ECR<br/>3 private repositories"]
+        logs["Amazon CloudWatch<br/>EKS control-plane logs"]
 
-`NOTIFICATION_SERVICE_URL` and `WAREHOUSE_SERVICE_URL` are how main-app
-reaches the other two — whatever DNS name/Service name they get in the
-cluster needs to go in those two vars. `NOTIFICATION_PUBLIC_URL` /
-`WAREHOUSE_PUBLIC_URL` are separate on purpose: they're browser-facing links
-shown in the admin sidebar, so they need to be real externally reachable
-hostnames, not internal Service DNS.
+        subgraph vpc["VPC: 10.0.0.0/16"]
+            subgraph public["Two public subnets"]
+                elb["AWS load balancers"]
+                nat["NAT Gateway"]
+            end
 
-`action-messages` and `techpathway-warehouse` each use a local SQLite file
-as their datastore — if DevOps runs more than 1 replica of either, they'll
-need a persistent volume per pod (or a real shared database) since SQLite
-doesn't support concurrent writers across pods. `main-app` is stateless
-per-request and safe to run at 2+ replicas out of the box (assuming
-MySQL/RDS is configured — multiple replicas each with their own local
-SQLite file would see different data).
+            subgraph private["Two private subnets"]
+                subgraph eks["Amazon EKS 1.35"]
+                    main["weekly-call<br/>Service :80 â†’ Pod :5111"]
+                    notify["action-messages<br/>Service :80 â†’ Pod :5001"]
+                    warehouse["techpathway-warehouse<br/>Service :80 â†’ Pod :5002"]
+                    metrics["Metrics Server<br/>Prometheus + Grafana"]
+                end
+            end
+        end
+    end
 
-All calls between services are "best effort": if a sibling pod is down or
-slow, the admin action that triggered the call (placing an order) still
-succeeds — the failure is logged, not raised.
-
-## Secrets: AWS Secrets Manager (optional)
-
-Both `main-app` and `action-messages` support pulling real credentials from
-AWS Secrets Manager instead of a plaintext `.env` file — useful once this
-goes past local demo/bootcamp use, since it means SMTP passwords, the RDS
-password, and AWS keys never have to sit in a file (or get pasted anywhere).
-
-How it works: set `SECRETS_MANAGER_SECRET_NAME` (and optionally `AWS_REGION`,
-defaults to `us-east-1`) to the name/ARN of a secret holding a JSON object of
-env-var keys and values, e.g.:
-
-```bash
-aws secretsmanager create-secret \
-  --name techpathway/action-messages \
-  --secret-string '{"SMTP_HOST":"smtp.gmail.com","SMTP_PORT":"587","SMTP_USER":"you@gmail.com","SMTP_PASSWORD":"your-app-password","ALWAYS_CC_EMAIL":"m.olujobi1@gmail.com"}'
+    awscli -->|"provision and deploy"| region
+    user -->|"HTTP"| elb
+    elb --> main
+    elb --> notify
+    elb --> warehouse
+    main -->|"POST /notify/order-confirmed"| notify
+    main -->|"POST /warehouse/orders"| warehouse
+    ecr -->|"private image pulls"| eks
+    eks --> logs
+    metrics -.->|"collect metrics"| main
+    metrics -.->|"collect metrics"| notify
+    metrics -.->|"collect metrics"| warehouse
+    eks -->|"outbound traffic"| nat
 ```
 
-At startup, each app fetches that secret and merges its keys into its own
-environment, overriding anything set locally. If `SECRETS_MANAGER_SECRET_NAME`
-is left blank (the default), this is skipped entirely and everything works
-exactly as before — plain env vars / `.env` / demo mode. If the fetch fails
-for any reason (missing IAM permission, wrong secret name, wrong region), the
-app logs a warning and falls back to its local env vars rather than crashing
-— a broken secret should never take down the service.
+## AWS infrastructure
 
-Whichever role/user the container runs as in production needs
-`secretsmanager:GetSecretValue` permission on the relevant secret(s) — that's
-an IAM policy DevOps would attach to the ECS task role / EKS pod's IAM role
-(via IRSA), not something baked into the image.
+Terraform defines the AWS infrastructure in `terraform/`.
 
-## Run everything locally (docker-compose)
+### Networking
 
-```bash
-docker compose up --build
-```
-
-| Service | URL |
+| Component | Implemented configuration |
 |---|---|
-| Storefront/admin | http://localhost:5111 |
-| Action messages | http://localhost:5001 |
-| Warehouse board | http://localhost:5002 |
+| VPC | `10.0.0.0/16` |
+| Public subnets | `10.0.1.0/24` and `10.0.2.0/24` |
+| Private subnets | `10.0.3.0/24` and `10.0.4.0/24` |
+| Availability | Subnets distributed across two Availability Zones |
+| Internet access | Internet Gateway and public route table |
+| Private egress | One NAT Gateway and private route table |
+| Workload placement | EKS managed worker nodes in private subnets |
 
-Try it end to end: place an order from `/store` (or `/orders/new` in the
-admin) — it's confirmed automatically, so within a couple seconds it should
-show up on the warehouse board at `:5002` and a message should appear on
-`:5001` with a tracking number.
+One NAT Gateway was selected as a project cost tradeoff. A production design requiring Availability Zone independence should evaluate one NAT Gateway per Availability Zone.
 
-No Docker yet? `bash run-local.sh` does the same thing with plain Python
-venvs instead of containers.
+### Container registry
 
-## Build and push to Amazon ECR
+Three private ECR repositories store the application images:
 
-Replace `<account-id>` and `<region>` with yours (find your account ID with
-`aws sts get-caller-identity`):
+- `action-messages`
+- `techpathway-warehouse`
+- `weekly-call`
 
-```bash
-export AWS_ACCOUNT_ID=<account-id>
-export AWS_REGION=<region>
-export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+The verified deployment used the `v1` image tag. Lifecycle policies limit retained images. The committed Kubernetes manifests use the example account ID `123456789012`; a deployment operator replaces it locally with the active account ID and does not commit the real value.
 
-# 1. Create a repo per service (one-time)
-aws ecr create-repository --repository-name main-app                 --region $AWS_REGION
-aws ecr create-repository --repository-name action-messages          --region $AWS_REGION
-aws ecr create-repository --repository-name techpathway-warehouse    --region $AWS_REGION
+### Amazon EKS
 
-# 2. Authenticate Docker to ECR
-aws ecr get-login-password --region $AWS_REGION \
-  | docker login --username AWS --password-stdin $ECR_REGISTRY
+| Setting | Verified value |
+|---|---|
+| Cluster name | `techpathway-eks-cluster` |
+| Kubernetes version | 1.35 |
+| Node-group name | `techpathway-capstone-managed-nodes` |
+| Instance type | `c7i-flex.large` |
+| Desired nodes | 2 |
+| Minimum nodes | 2 |
+| Maximum nodes | 4 |
+| Node placement | Private subnets |
 
-# 3. Build, tag, and push each image
-docker build -t main-app ./weekly-call
-docker tag main-app:latest $ECR_REGISTRY/main-app:latest
-docker push $ECR_REGISTRY/main-app:latest
+The initial `t3.medium` node group failed because the AWS account rejected that instance type under its Free Tier restrictions. Auto Scaling activity history exposed the EC2 launch failure. Terraform then replaced the failed, tainted node group with `c7i-flex.large`, and two nodes joined the cluster in `Ready` state.
 
-docker build -t action-messages ./action-messages
-docker tag action-messages:latest $ECR_REGISTRY/action-messages:latest
-docker push $ECR_REGISTRY/action-messages:latest
+### IAM and logging
 
-docker build -t techpathway-warehouse ./techpathway-warehouse
-docker tag techpathway-warehouse:latest $ECR_REGISTRY/techpathway-warehouse:latest
-docker push $ECR_REGISTRY/techpathway-warehouse:latest
+- Separate IAM roles are defined for the EKS control plane and managed worker nodes.
+- AWS-managed EKS cluster, worker-node, CNI, and ECR pull policies are attached where required.
+- An EKS OpenID Connect provider is created for future IAM Roles for Service Accounts integration.
+- EKS control-plane logging is sent to a dedicated CloudWatch log group.
+- No long-lived AWS credentials are stored in the Terraform or Kubernetes configuration.
+
+## Kubernetes architecture
+
+All application resources are grouped in the `techpathway` namespace.
+
+### Configuration resources
+
+`configmap.yaml` contains non-sensitive settings:
+
+- AWS Region.
+- Internal notification and warehouse service URLs.
+- Browser-facing notification and warehouse URLs.
+- SMTP port, sender name, sender address, and demonstration CC address.
+
+Internal application calls use the Kubernetes Service port:
+
+```text
+http://action-messages:80
+http://techpathway-warehouse:80
 ```
 
-A copy of this as a runnable script is in `push-to-ecr.sh` at the repo
-root — edit the `AWS_ACCOUNT_ID`/`AWS_REGION` values at the top and run
-`bash push-to-ecr.sh`. Requires the AWS CLI installed and configured
-(`aws configure`) with permissions for ECR.
+`secret.example.yaml` is safe to commit and contains only a placeholder. A deployment operator copies it to the ignored `secret.yaml` file and replaces the placeholder with a securely generated `SECRET_KEY`.
 
-Once pushed, hand DevOps the three image URIs
-(`$ECR_REGISTRY/main-app:latest`, etc.) plus the contract table above —
-that's everything they need to write the Kubernetes manifests.
+### Deployments
 
-## Why replica counts would differ (for DevOps' reference)
+Each service has a dedicated Deployment with:
 
-`main-app` is stateless per-request (data lives in MySQL/RDS), so it's safe
-to run at 2+ replicas behind a load balancer. `action-messages` and
-`techpathway-warehouse` each use local SQLite as their datastore for
-simplicity, and SQLite doesn't support multiple concurrent writers — running
-either at more than 1 replica would need a persistent volume per pod at
-minimum, or swapping SQLite for a real database first (the same step
-`main-app` already took when it moved from local SQLite to RDS).
+- Two steady-state replicas after operational and autoscaling tests.
+- Rolling-update behavior managed by Kubernetes.
+- CPU and memory requests for scheduler placement and HPA calculations.
+- CPU and memory limits to constrain container resource consumption.
+- Readiness probes against `GET /health`.
+- Liveness probes against `GET /health`.
+- Configuration loaded from `techpathway-config` and `techpathway-secrets` where required.
 
-## What's not in this repo (by design)
+The Deployments pull private `v1` images from ECR through the worker-node role.
 
-- No Kubernetes manifests, no cluster, no ingress — that's the DevOps
-  team's infrastructure repo.
-- No monitoring — same reason.
-- No shared auth between services — anyone who can reach a service can
-  call its API. Fine inside a private network; add mTLS or an API key if
-  this goes further.
-- No message queue — `main-app` calls the other two services synchronously
-  over HTTP with a 3s timeout. A production version of this would likely
-  put SQS/RabbitMQ between them so an order isn't lost if
-  techpathway-warehouse is mid-restart.
-- No CI/CD — the ECR push above is manual.
+### Services and public access
+
+Each application uses a Kubernetes `LoadBalancer` Service:
+
+| Service | Service port | Target port |
+|---|---:|---:|
+| `weekly-call` | 80 | 5111 |
+| `action-messages` | 80 | 5001 |
+| `techpathway-warehouse` | 80 | 5002 |
+
+This created three public AWS load balancers for capstone validation. A production platform should consolidate routing through an ingress controller or AWS Load Balancer Controller, terminate TLS with AWS Certificate Manager, and use a controlled DNS name.
+
+## Application and data flow
+
+### Order placement
+
+1. A customer places an order in the Weekly Call storefront.
+2. Weekly Call stores and automatically confirms the order.
+3. Weekly Call sends the order to `POST /warehouse/orders` through the warehouse Kubernetes Service.
+4. TechPathway Warehouse decrements inventory and creates a fulfillment item in the `received` state.
+5. Weekly Call calls `POST /notify/order-confirmed` through the notification Kubernetes Service.
+6. Action Messages creates a tracking number and a notification audit record.
+7. When SMTP is not configured, the notification is logged in demonstration mode instead of being sent.
+
+The end-to-end test verified that a storefront order appeared in the warehouse, reduced product inventory, and produced a tracking record in Action Messages.
+
+### Fulfillment states
+
+Warehouse orders move through:
+
+```text
+received â†’ picking â†’ packed â†’ shipped
+```
+
+The main application can continue an order through its administrative lifecycle after confirmation.
+
+## Scaling and self-healing
+
+### Deployment self-healing
+
+Kubernetes Deployments maintain the desired replica count. During validation, one Weekly Call pod was deleted manually. The ReplicaSet created a replacement, and the new pod reached `1/1 Running` without application redeployment.
+
+### Horizontal Pod Autoscaling
+
+Metrics Server supplies CPU metrics to three Horizontal Pod Autoscalers:
+
+| HPA | CPU target | Minimum pods | Maximum pods |
+|---|---:|---:|---:|
+| `action-messages-hpa` | 50% | 2 | 5 |
+| `techpathway-warehouse-hpa` | 50% | 2 | 5 |
+| `weekly-call-hpa` | 50% | 2 | 5 |
+
+Generated traffic increased replicas as high as five. After the load stopped and CPU utilization declined, all three Deployments returned to two replicas.
+
+The EC2 Auto Scaling boundaries of the managed node group and the pod-level HPA limits are independent. This project configured node-group capacity in Terraform but did not deploy Kubernetes Cluster Autoscaler or Karpenter.
+
+## Monitoring architecture
+
+The monitoring layer was installed with Helm:
+
+- Metrics Server chart `3.14.0`, application version `0.9.0`.
+- `kube-prometheus-stack` chart `88.5.0`, application version `0.93.1`.
+- Prometheus for metrics storage and querying.
+- Grafana for cluster, namespace, workload, CPU, memory, and network dashboards.
+- kube-state-metrics for Kubernetes object state.
+- node-exporter on each worker node for node-level metrics.
+
+Grafana used the chart-provisioned Prometheus data source. Access was provided locally with `kubectl port-forward`, rather than exposing the monitoring interface through a public load balancer.
+
+## Persistence model and availability limitation
+
+The application configuration used local SQLite files for demonstration storage. SQLite files are local to individual containers or pods and are not shared across replicas. Scaling the applications demonstrated Kubernetes scheduling and HPA behavior, but it did not provide shared, highly available application data.
+
+A production implementation should:
+
+- Move shared application state to Amazon RDS or another managed database.
+- Define database migrations, backups, restore testing, and retention policies.
+- Keep application containers stateless.
+- Use persistent storage only where the workload genuinely requires it.
+
+## Security boundaries
+
+### Implemented
+
+- Private ECR repositories.
+- Worker nodes in private subnets.
+- Separate EKS control-plane and node IAM roles.
+- ECR pull-only permission for worker nodes.
+- Ignored runtime Secret and safe committed Secret example.
+- Ignored `.env`, `.tfvars`, Terraform state, Terraform plans, local databases, and virtual environments.
+- Placeholder AWS account ID in committed manifests.
+- Grafana accessed through local port forwarding.
+- EKS control-plane logs sent to CloudWatch.
+
+### Recommended for production
+
+- HTTPS, ACM certificates, and managed DNS.
+- An ingress controller or AWS Load Balancer Controller.
+- Kubernetes NetworkPolicies and restricted security groups.
+- IAM Roles for Service Accounts for AWS-aware applications.
+- External Secrets Operator or AWS Secrets Manager integration.
+- Pod security controls and non-root containers where supported.
+- Image vulnerability scanning and immutable image digests.
+- Centralized application logs, alerts, and incident notification routing.
+- PodDisruptionBudgets and topology-aware scheduling.
+
+## Troubleshooting evidence
+
+The project fully demonstrated and recovered one TP-008 failure mode:
+
+### ImagePullBackOff
+
+1. A test Deployment referenced a nonexistent `missing-tag` ECR image.
+2. The pod reported `ErrImagePull` and then `ImagePullBackOff`.
+3. `kubectl describe pod` showed that the image reference could not be resolved.
+4. `kubectl logs` correctly reported that the container had not started.
+5. The image was corrected to the valid `v1` tag.
+6. The replacement pod reached `1/1 Running`.
+
+CrashLoopBackOff, Pending Pod, incorrect container port, failed readiness probe, and failed liveness probe were listed in the assignment but were not fully demonstrated. They are not presented as completed work in this repository.
+
+## Deployment sequence
+
+The verified high-level deployment order was:
+
+1. Validate AWS identity, region, and service quotas.
+2. Initialize, format, validate, plan, and apply Terraform.
+3. Configure `kubectl` for the EKS cluster.
+4. Authenticate Docker to ECR.
+5. Build, tag, and push the three `v1` images.
+6. Create the Kubernetes namespace, ConfigMap, and Secret.
+7. Deploy the three application Deployments and Services.
+8. Validate pods, health endpoints, and the end-to-end order flow.
+9. Install Metrics Server and apply the HPAs.
+10. Install Prometheus and Grafana with Helm.
+11. Validate scaling, self-healing, metrics, and troubleshooting recovery.
+12. Delete public Services, application resources, Helm releases, and namespaces.
+13. Apply the Terraform destroy plan and verify that the project resources were removed.
+
+## Cleanup verification
+
+Cleanup completed in dependency-aware order:
+
+- Kubernetes LoadBalancer Services were deleted first so AWS could deprovision the external load balancers.
+- HPAs, Deployments, test workloads, ConfigMaps, Secrets, and namespaces were removed.
+- The Prometheus/Grafana and Metrics Server Helm releases were uninstalled.
+- Terraform destroyed 33 managed AWS resources.
+- The final Terraform state was empty.
+- Follow-up AWS CLI checks found no project EKS cluster, ECR repositories, VPC, or NAT Gateway.
+
+## Future architecture evolution
+
+A stronger production version would add:
+
+1. Amazon RDS for shared transactional data.
+2. Amazon SQS or another durable queue for downstream order events.
+3. AWS Load Balancer Controller with one HTTPS entry point and path- or host-based routing.
+4. Route 53 and ACM for DNS and TLS.
+5. Remote encrypted Terraform state with locking.
+6. CI/CD or GitOps for image and manifest promotion.
+7. EKS add-on lifecycle management and managed observability configuration.
+8. NetworkPolicies, IRSA, image scanning, alert routing, and backup validation.
+9. Kubernetes Cluster Autoscaler or Karpenter when pod demand can exceed current node capacity.

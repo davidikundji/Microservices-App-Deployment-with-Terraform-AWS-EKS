@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: weekly-call
+  namespace: techpathway
+  labels:
+    app: weekly-call
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  selector:
+    app: weekly-call
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 5111
+  externalTrafficPolicy: Cluster

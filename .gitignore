@@ -2,3 +2,97 @@
 __pycache__/
 *.pyc
 .vscode/
+# Python virtual environment
+.venv/
+
+# Local application databases
+*.db
+
+# Terraform working files and state
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+# Terraform variable files that may contain secrets
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Local Kubernetes configuration
+kubeconfig*
+
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+.aws/
+.kube/
+kubeconfig*
+credentials*.json
+*.pem
+*.ppk
+*.pfx
+*.p12
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local application databases and logs
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+
+# Terraform working files and state
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+.terraformrc
+terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Environment-specific Terraform variables
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+
+# Kubernetes secrets
+**/secret.yaml
+**/secrets.yaml
+**/*-secret.yaml
+**/*-secrets.yaml
+**/secret.yml
+**/secrets.yml
+**/*-secret.yml
+**/*-secrets.yml
+
+# IDE and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
