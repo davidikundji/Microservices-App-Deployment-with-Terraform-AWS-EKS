@@ -449,4 +449,4 @@ An empty final `terraform state list`, along with `ResourceNotFoundException` re
 
 **David Ikundji**<br>
 AWS and DevOps portfolio project<br>
-[GitHub repository](https://github.com/davidikundji/AWS-EKS-Microservices-with-Terraform-Kubernetes)
+[GitHub repository](https://github.com/davidikundji/Microservices-App-Deployment-with-Terraform-AWS-EKS)
