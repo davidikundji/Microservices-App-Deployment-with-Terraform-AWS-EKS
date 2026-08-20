@@ -37,9 +37,9 @@ flowchart TB
 
             subgraph private["Two private subnets"]
                 subgraph eks["Amazon EKS 1.35"]
-                    main["weekly-call<br/>Service :80 â†’ Pod :5111"]
-                    notify["action-messages<br/>Service :80 â†’ Pod :5001"]
-                    warehouse["techpathway-warehouse<br/>Service :80 â†’ Pod :5002"]
+                    main["weekly-call<br/>Service :80 -> Pod :5111"]
+                    notify["action-messages<br/>Service :80 -> Pod :5001"]
+                    warehouse["techpathway-warehouse<br/>Service :80 -> Pod :5002"]
                     metrics["Metrics Server<br/>Prometheus + Grafana"]
                 end
             end
@@ -179,7 +179,7 @@ The end-to-end test verified that a storefront order appeared in the warehouse, 
 Warehouse orders move through:
 
 ```text
-received â†’ picking â†’ packed â†’ shipped
+received -> picking -> packed -> shipped
 ```
 
 The main application can continue an order through its administrative lifecycle after confirmation.

@@ -376,7 +376,7 @@ The main application initially referenced service names with ports 5001 and 5002
 
 A test Deployment intentionally referenced the nonexistent image tag `missing-tag`. `kubectl describe pod` showed that ECR could not resolve the tag, and `kubectl logs` correctly reported that the container had never started. Updating the Deployment to the valid `v1` image recovered the workload to `1/1 Running`.
 
-The remaining TP-008 practice scenariosÃ¢â‚¬â€CrashLoopBackOff, Pending Pod, incorrect container port, failed readiness probe, and failed liveness probeÃ¢â‚¬â€are not claimed as completed in this repository.
+The remaining TP-008 practice scenarios (CrashLoopBackOff, Pending Pod, incorrect container port, failed readiness probe, and failed liveness probe) are not claimed as completed in this repository.
 
 ## Security controls
 
@@ -442,7 +442,7 @@ An empty final `terraform state list`, along with `ResourceNotFoundException` re
 - AWS service error messages and Auto Scaling activity history provide the fastest route to the root cause of a failed managed node group.
 - Kubernetes Service ports and container ports are distinct and must be reflected correctly in inter-service URLs.
 - Health probes, requests, limits, and metrics are prerequisites for reliable scheduling and autoscaling behavior.
-- A successful deployment includes validation, recovery testing, observability, and cleanupÃ¢â‚¬â€not only resource creation.
+- A successful deployment includes validation, recovery testing, observability, and cleanup, not only resource creation.
 - Portfolio documentation should distinguish supplied application code from the infrastructure and operational work performed.
 
 ## Author
