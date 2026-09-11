@@ -155,6 +155,27 @@ resource "aws_eks_addon" "coredns" {
 }
 
 # -----------------------------------------------------------------------------
+# EKS Metrics Server Community Add-on
+# -----------------------------------------------------------------------------
+
+resource "aws_eks_addon" "metrics_server" {
+  cluster_name  = aws_eks_cluster.main.name
+  addon_name    = "metrics-server"
+  addon_version = "v0.9.0-eksbuild.10"
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "PRESERVE"
+
+  depends_on = [
+    aws_eks_node_group.main
+  ]
+
+  tags = {
+    Name = "${var.cluster_name}-metrics-server"
+  }
+}
+
+# -----------------------------------------------------------------------------
 # OpenID Connect Provider for Kubernetes Service Accounts
 # -----------------------------------------------------------------------------
 
