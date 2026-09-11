@@ -62,7 +62,9 @@ flowchart TB
     actions -->|"OIDC authentication"| oidc
     oidc --> actions
     actions -->|"build and push"| ecr
-    actions -->|"deploy commit SHA"| eks
+    actions -->|"deploy commit SHA"| main
+    actions -->|"deploy commit SHA"| notify
+    actions -->|"deploy commit SHA"| warehouse
     ecr --> main
     ecr --> notify
     ecr --> warehouse
