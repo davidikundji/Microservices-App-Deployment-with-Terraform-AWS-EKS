@@ -1,0 +1,341 @@
+name: CI/CD - AWS EKS Microservices
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: techpathway-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: techpathway-eks-cluster
+  K8S_NAMESPACE: techpathway
+
+jobs:
+  ci:
+    name: CI - ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: weekly-call
+            context: ./weekly-call
+            container_port: 5111
+            host_port: 15111
+
+          - service: action-messages
+            context: ./action-messages
+            container_port: 5001
+            host_port: 15001
+
+          - service: techpathway-warehouse
+            context: ./techpathway-warehouse
+            container_port: 5002
+            host_port: 15002
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Build container image
+        run: |
+          docker build \
+            --pull \
+            --tag "${{ matrix.service }}:ci-${GITHUB_SHA}" \
+            "${{ matrix.context }}"
+
+      - name: Run container health test
+        run: |
+          CONTAINER_NAME="${{ matrix.service }}-ci"
+
+          docker run \
+            --detach \
+            --name "${CONTAINER_NAME}" \
+            --publish "127.0.0.1:${{ matrix.host_port }}:${{ matrix.container_port }}" \
+            "${{ matrix.service }}:ci-${GITHUB_SHA}"
+
+          for ATTEMPT in $(seq 1 30); do
+            if curl \
+              --fail \
+              --silent \
+              "http://127.0.0.1:${{ matrix.host_port }}/health" \
+              > /dev/null; then
+
+              echo "${{ matrix.service }} health check passed."
+              docker rm --force "${CONTAINER_NAME}"
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          echo "::error::${{ matrix.service }} health check failed."
+          docker logs "${CONTAINER_NAME}" || true
+          docker rm --force "${CONTAINER_NAME}" || true
+          exit 1
+
+  deploy:
+    name: CD - Deploy to Amazon EKS
+    needs:
+      - ci
+
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event_name != 'pull_request'
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Validate deployment configuration
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          APPLICATION_SECRET: ${{ secrets.TECHPATHWAY_SECRET_KEY }}
+        run: |
+          if [ -z "${AWS_ROLE_ARN}" ]; then
+            echo "::error::AWS_ROLE_ARN repository variable is missing."
+            exit 1
+          fi
+
+          if [ -z "${APPLICATION_SECRET}" ]; then
+            echo "::error::TECHPATHWAY_SECRET_KEY repository secret is missing."
+            exit 1
+          fi
+
+      - name: Authenticate to AWS with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: github-actions-eks-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Configure ECR registry
+        run: |
+          AWS_ACCOUNT_ID=$(
+            aws sts get-caller-identity \
+              --query Account \
+              --output text
+          )
+
+          echo "::add-mask::${AWS_ACCOUNT_ID}"
+
+          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+          echo "AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}" >> "${GITHUB_ENV}"
+          echo "ECR_REGISTRY=${ECR_REGISTRY}" >> "${GITHUB_ENV}"
+
+          aws ecr get-login-password \
+            --region "${AWS_REGION}" |
+            docker login \
+              --username AWS \
+              --password-stdin "${ECR_REGISTRY}"
+
+      - name: Build and push commit-tagged images
+        run: |
+          for SERVICE in \
+            weekly-call \
+            action-messages \
+            techpathway-warehouse
+          do
+            IMAGE_URI="${ECR_REGISTRY}/${SERVICE}:${GITHUB_SHA}"
+
+            docker build \
+              --pull \
+              --tag "${IMAGE_URI}" \
+              "./${SERVICE}"
+
+            docker push "${IMAGE_URI}"
+          done
+
+      - name: Install kubectl
+        run: |
+          KUBECTL_VERSION="v1.35.7"
+
+          curl --fail --silent --show-error --location \
+            --output kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+
+          curl --fail --silent --show-error --location \
+            --output kubectl.sha256 \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256"
+
+          echo "$(cat kubectl.sha256)  kubectl" |
+            sha256sum --check
+
+          sudo install \
+            --owner root \
+            --group root \
+            --mode 0755 \
+            kubectl \
+            /usr/local/bin/kubectl
+
+          kubectl version --client
+
+      - name: Connect to Amazon EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region "${AWS_REGION}" \
+            --name "${EKS_CLUSTER_NAME}"
+
+      - name: Verify namespace-scoped authorization
+        run: |
+          DEPLOY_ALLOWED=$(
+            kubectl auth can-i \
+              create deployments \
+              --namespace "${K8S_NAMESPACE}" || true
+          )
+
+          NAMESPACE_ALLOWED=$(
+            kubectl auth can-i \
+              create namespaces || true
+          )
+
+          if [ "${DEPLOY_ALLOWED}" != "yes" ]; then
+            echo "::error::The workflow cannot deploy inside ${K8S_NAMESPACE}."
+            exit 1
+          fi
+
+          if [ "${NAMESPACE_ALLOWED}" != "no" ]; then
+            echo "::error::The workflow unexpectedly has cluster-level namespace permissions."
+            exit 1
+          fi
+
+      - name: Create or update Kubernetes secret
+        env:
+          APPLICATION_SECRET: ${{ secrets.TECHPATHWAY_SECRET_KEY }}
+        run: |
+          kubectl \
+            --namespace "${K8S_NAMESPACE}" \
+            create secret generic techpathway-secrets \
+            --from-literal="SECRET_KEY=${APPLICATION_SECRET}" \
+            --dry-run=client \
+            --output yaml |
+            kubectl apply --filename -
+
+      - name: Render commit-specific deployment manifests
+        run: |
+          RENDERED_DIRECTORY="${RUNNER_TEMP}/rendered"
+          mkdir --parents "${RENDERED_DIRECTORY}"
+
+          for SERVICE in \
+            weekly-call \
+            action-messages \
+            techpathway-warehouse
+          do
+            SOURCE_FILE="kubernetes/${SERVICE}-deployment.yaml"
+            TARGET_FILE="${RENDERED_DIRECTORY}/${SERVICE}-deployment.yaml"
+            IMAGE_URI="${ECR_REGISTRY}/${SERVICE}:${GITHUB_SHA}"
+
+            sed \
+              "s#123456789012.dkr.ecr.us-east-1.amazonaws.com/${SERVICE}:v1#${IMAGE_URI}#g" \
+              "${SOURCE_FILE}" \
+              > "${TARGET_FILE}"
+
+            if ! grep --quiet "${IMAGE_URI}" "${TARGET_FILE}"; then
+              echo "::error::Image replacement failed for ${SERVICE}."
+              exit 1
+            fi
+          done
+
+          echo "RENDERED_DIRECTORY=${RENDERED_DIRECTORY}" >> "${GITHUB_ENV}"
+
+      - name: Apply Kubernetes resources
+        run: |
+          kubectl apply \
+            --filename kubernetes/configmap.yaml
+
+          kubectl apply \
+            --filename kubernetes/weekly-call-service.yaml \
+            --filename kubernetes/action-messages-service.yaml \
+            --filename kubernetes/techpathway-warehouse-service.yaml
+
+          kubectl apply \
+            --filename "${RENDERED_DIRECTORY}"
+
+          kubectl apply \
+            --filename kubernetes/hpa.yaml
+
+      - name: Verify rollout and rollback on failure
+        run: |
+          FAILED_DEPLOYMENTS=()
+
+          for DEPLOYMENT in \
+            weekly-call \
+            action-messages \
+            techpathway-warehouse
+          do
+            if ! kubectl \
+              --namespace "${K8S_NAMESPACE}" \
+              rollout status \
+              "deployment/${DEPLOYMENT}" \
+              --timeout 5m; then
+
+              FAILED_DEPLOYMENTS+=("${DEPLOYMENT}")
+            fi
+          done
+
+          if [ "${#FAILED_DEPLOYMENTS[@]}" -gt 0 ]; then
+            echo "::error::One or more deployments failed."
+
+            kubectl \
+              --namespace "${K8S_NAMESPACE}" \
+              get pods \
+              --output wide || true
+
+            for DEPLOYMENT in "${FAILED_DEPLOYMENTS[@]}"; do
+              kubectl \
+                --namespace "${K8S_NAMESPACE}" \
+                rollout undo \
+                "deployment/${DEPLOYMENT}" || true
+            done
+
+            exit 1
+          fi
+
+      - name: Verify deployed image versions
+        run: |
+          for DEPLOYMENT in \
+            weekly-call \
+            action-messages \
+            techpathway-warehouse
+          do
+            EXPECTED_IMAGE="${ECR_REGISTRY}/${DEPLOYMENT}:${GITHUB_SHA}"
+
+            DEPLOYED_IMAGE=$(
+              kubectl \
+                --namespace "${K8S_NAMESPACE}" \
+                get deployment "${DEPLOYMENT}" \
+                --output jsonpath='{.spec.template.spec.containers[0].image}'
+            )
+
+            if [ "${DEPLOYED_IMAGE}" != "${EXPECTED_IMAGE}" ]; then
+              echo "::error::Unexpected image deployed for ${DEPLOYMENT}."
+              exit 1
+            fi
+          done
+
+          kubectl \
+            --namespace "${K8S_NAMESPACE}" \
+            get deployments,pods,services,hpa \
+            --output wide
